@@ -98,7 +98,7 @@ for (const file of await listFiles(join(appDir, 'assets'))) {
 
 await writeFile(
   join(appDir, 'service-worker.js'),
-  `const CACHE_NAME = 'simple-invoice-iphone-v1';
+  `const CACHE_NAME = 'simple-invoice-iphone-v2';
 const APP_SHELL = ${JSON.stringify(cachedFiles, null, 2)};
 
 self.addEventListener('install', (event) => {

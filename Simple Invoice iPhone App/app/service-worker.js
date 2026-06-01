@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simple-invoice-iphone-v1';
+const CACHE_NAME = 'simple-invoice-iphone-v2';
 const APP_SHELL = [
   "./",
   "./index.html",
