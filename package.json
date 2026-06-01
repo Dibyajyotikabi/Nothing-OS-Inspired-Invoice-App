@@ -1,7 +1,7 @@
 {
-  "name": "nothing-invoice-app",
+  "name": "dot-matrix-invoice-app",
   "version": "1.0.0",
-  "description": "Editable invoice app with a print-ready studio invoice design.",
+  "description": "Editable invoice app with a brandable print-ready studio design.",
   "type": "module",
   "private": true,
   "scripts": {

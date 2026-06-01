@@ -1,7 +1,14 @@
-const STORAGE_KEY = 'nothing-invoice-state-v1';
+const STORAGE_KEY = 'dot-matrix-invoice-state-v1';
+const MAX_LOGO_BYTES = 750 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 const DEFAULT_INVOICE = {
   studio: {
+    companyName: 'Arvo Studio',
+    tagline: 'DESIGN STUDIO',
+    brandMode: 'text',
+    logoDataUrl: '',
+    logoFileName: '',
     email: 'hello@arvostudio.com',
     phone: '(415) 555-0198',
     website: 'www.arvostudio.com',
@@ -35,6 +42,10 @@ const DEFAULT_INVOICE = {
 
 const invoiceDocument = document.querySelector('#invoiceDocument');
 const toolbarInvoiceNumber = document.querySelector('#toolbarInvoiceNumber');
+const brandModeControl = document.querySelector('#brandModeControl');
+const companyNameControl = document.querySelector('#companyNameControl');
+const logoUploadControl = document.querySelector('#logoUploadControl');
+const removeLogoButton = document.querySelector('#removeLogoButton');
 const statusControl = document.querySelector('#statusControl');
 const taxControl = document.querySelector('#taxControl');
 const addItemButton = document.querySelector('#addItemButton');
@@ -111,6 +122,70 @@ function setPath(path, value) {
   current[keys.at(-1)] = value;
 }
 
+const DOT_FONT = {
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  G: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  J: ['00111', '00010', '00010', '00010', '10010', '10010', '01100'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+  W: ['10001', '10001', '10001', '10101', '10101', '11011', '10001'],
+  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+  0: ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  1: ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  2: ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  3: ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+  4: ['10010', '10010', '10010', '11111', '00010', '00010', '00010'],
+  5: ['11111', '10000', '10000', '11110', '00001', '00001', '11110'],
+  6: ['01110', '10000', '10000', '11110', '10001', '10001', '01110'],
+  7: ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  8: ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  9: ['01110', '10001', '10001', '01111', '00001', '00001', '01110']
+};
+
+function normalizeBrandText(value) {
+  const cleanText = String(value || DEFAULT_INVOICE.studio.companyName)
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleanText || DEFAULT_INVOICE.studio.companyName.toUpperCase();
+}
+
+function dotLetterMarkup(character) {
+  if (character === ' ') {
+    return '<span class="dot-letter dot-space" aria-hidden="true"></span>';
+  }
+
+  const glyph = DOT_FONT[character] || DOT_FONT.A;
+  const dots = glyph.flatMap((row) => {
+    return [...row].map((value) => `<i class="${value === '1' ? 'on' : 'off'}"></i>`);
+  });
+  return `<span class="dot-letter">${dots.join('')}</span>`;
+}
+
+function dotMatrixMarkup(value) {
+  return [...normalizeBrandText(value)].map(dotLetterMarkup).join('');
+}
+
 function spacedText(text) {
   return [...text].map((char) => `<span>${escapeHtml(char)}</span>`).join('');
 }
@@ -145,6 +220,23 @@ function metaRow(label, path, value, extraClass = '') {
   `;
 }
 
+function isSafeLogoDataUrl(value) {
+  return /^data:image\/(png|jpeg|webp|gif);base64,/i.test(String(value || ''));
+}
+
+function getBrandMarkup() {
+  const companyName = state.studio.companyName || DEFAULT_INVOICE.studio.companyName;
+  if (state.studio.brandMode === 'logo' && isSafeLogoDataUrl(state.studio.logoDataUrl)) {
+    return `
+      <img class="brand-logo-image" src="${state.studio.logoDataUrl}" alt="${escapeHtml(companyName)} logo" />
+    `;
+  }
+
+  return `
+    <div class="dot-logo" id="dotLogo" aria-label="${escapeHtml(companyName)}">${dotMatrixMarkup(companyName)}</div>
+  `;
+}
+
 function renderItemRows() {
   return state.items.map((item) => {
     const amount = Number(item.quantity || 0) * Number(item.unitPrice || 0);
@@ -175,10 +267,9 @@ function renderInvoice() {
     <header class="invoice-header">
       <div class="brand-block">
         <div class="brand-line">
-          <div class="dot-logo" id="dotLogo" aria-label="Nothing"></div>
-          <span class="registered" aria-hidden="true">&reg;</span>
+          ${getBrandMarkup()}
         </div>
-        <p class="studio-label">${spacedText('DESIGN STUDIO')}</p>
+        <p class="studio-label editable" contenteditable="true" data-path="studio.tagline">${spacedText(state.studio.tagline || DEFAULT_INVOICE.studio.tagline)}</p>
       </div>
       <div class="title-block">
         <h1>${spacedText('INVOICE')}</h1>
@@ -264,40 +355,14 @@ function renderInvoice() {
     </section>
   `;
 
-  renderDotLogo();
   updateToolbar();
-}
-
-function renderDotLogo() {
-  const logo = document.querySelector('#dotLogo');
-  if (!logo) return;
-
-  const letters = {
-    N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
-    O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
-    H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
-    I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
-    G: ['01110', '10001', '10000', '10111', '10001', '10001', '01110']
-  };
-
-  logo.innerHTML = '';
-  [...'NOTHING'].forEach((letter) => {
-    const cell = document.createElement('span');
-    cell.className = 'dot-letter';
-    letters[letter].forEach((row) => {
-      [...row].forEach((value) => {
-        const dot = document.createElement('i');
-        dot.className = value === '1' ? 'on' : 'off';
-        cell.append(dot);
-      });
-    });
-    logo.append(cell);
-  });
 }
 
 function updateToolbar() {
   toolbarInvoiceNumber.textContent = state.invoice.number;
+  brandModeControl.value = state.studio.brandMode || 'text';
+  companyNameControl.value = state.studio.companyName || DEFAULT_INVOICE.studio.companyName;
+  removeLogoButton.hidden = !isSafeLogoDataUrl(state.studio.logoDataUrl);
   statusControl.value = state.invoice.status;
   taxControl.value = Number(state.taxRate || 0).toFixed(1);
 }
@@ -388,6 +453,28 @@ function printInvoice() {
   printWindow.focus();
 }
 
+function validateLogoFile(file) {
+  const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
+  const allowedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+
+  if (!ALLOWED_LOGO_TYPES.has(file.type) || !allowedExtensions.has(extension)) {
+    throw new Error('Please upload a PNG, JPG, WebP, or GIF logo.');
+  }
+
+  if (file.size > MAX_LOGO_BYTES) {
+    throw new Error('Please choose a logo smaller than 750 KB.');
+  }
+}
+
+function readLogoFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(reader.result));
+    reader.addEventListener('error', () => reject(new Error('Logo could not be read.')));
+    reader.readAsDataURL(file);
+  });
+}
+
 invoiceDocument.addEventListener('input', (event) => {
   const editable = event.target.closest('.editable');
   if (!editable) return;
@@ -448,6 +535,49 @@ invoiceDocument.addEventListener('click', (event) => {
     state.items = state.items.filter((item) => item.id !== removeButton.dataset.removeItem);
   }
 
+  saveState();
+  renderInvoice();
+});
+
+brandModeControl.addEventListener('change', () => {
+  state.studio.brandMode = brandModeControl.value;
+  saveState();
+  renderInvoice();
+});
+
+companyNameControl.addEventListener('input', () => {
+  state.studio.companyName = companyNameControl.value.trim() || DEFAULT_INVOICE.studio.companyName;
+  saveState();
+  renderInvoice();
+});
+
+logoUploadControl.addEventListener('change', async () => {
+  const file = logoUploadControl.files?.[0];
+  if (!file) return;
+
+  try {
+    validateLogoFile(file);
+    const logoDataUrl = await readLogoFile(file);
+    if (!isSafeLogoDataUrl(logoDataUrl)) {
+      throw new Error('Logo format is not supported.');
+    }
+
+    state.studio.logoDataUrl = logoDataUrl;
+    state.studio.logoFileName = file.name;
+    state.studio.brandMode = 'logo';
+    saveState();
+    renderInvoice();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    logoUploadControl.value = '';
+  }
+});
+
+removeLogoButton.addEventListener('click', () => {
+  state.studio.logoDataUrl = '';
+  state.studio.logoFileName = '';
+  state.studio.brandMode = 'text';
   saveState();
   renderInvoice();
 });

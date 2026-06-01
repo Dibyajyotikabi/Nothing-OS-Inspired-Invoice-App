@@ -14,6 +14,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   min-width: 320px;
   background: var(--app-bg);
@@ -59,7 +63,7 @@ svg {
   justify-content: space-between;
   gap: 18px;
   min-height: 64px;
-  padding: 10px max(18px, calc((100vw - 1120px) / 2));
+  padding: 10px max(18px, calc((100vw - 1240px) / 2));
   background: rgb(250 250 249 / 92%);
   border-bottom: 1px solid #ddddda;
   backdrop-filter: blur(14px);
@@ -77,6 +81,7 @@ svg {
 
 .toolbar-copy span,
 .tool-field span {
+  flex: 0 0 auto;
   color: #666666;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 11px;
@@ -104,6 +109,7 @@ svg {
 
 .tool-field input,
 .tool-field select {
+  flex: 0 0 auto;
   width: 76px;
   border: 0;
   outline: 0;
@@ -113,6 +119,14 @@ svg {
 
 .tool-field select {
   width: 86px;
+}
+
+.company-field input {
+  width: 132px;
+}
+
+.company-field {
+  min-width: 206px;
 }
 
 .tool-button {
@@ -132,6 +146,20 @@ svg {
 .tool-button.icon-only {
   width: 42px;
   padding: 0;
+}
+
+.file-button {
+  position: relative;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .tool-button:hover,
@@ -248,20 +276,16 @@ svg {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-}
-
-.registered {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 17px;
-  line-height: 1;
-  margin-top: 4px;
+  min-height: 58px;
 }
 
 .dot-logo {
   display: flex;
-  gap: 5px;
-  height: 48px;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 5px 7px;
+  max-width: 430px;
+  min-height: 48px;
 }
 
 .dot-letter {
@@ -284,6 +308,19 @@ svg {
 
 .dot-letter .off {
   background: transparent;
+}
+
+.dot-space {
+  width: 14px;
+}
+
+.brand-logo-image {
+  display: block;
+  width: auto;
+  max-width: min(360px, 100%);
+  max-height: 78px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .studio-label,
@@ -692,6 +729,14 @@ svg {
     gap: 6px;
   }
 
+  .company-field input {
+    width: 116px;
+  }
+
+  .company-field {
+    min-width: 196px;
+  }
+
   .tool-field {
     min-height: 36px;
   }
@@ -711,8 +756,8 @@ svg {
   }
 
   .red-dot {
-    top: 58px;
-    left: 6px;
+    top: 78px;
+    left: 2px;
   }
 
   .decor-plus-top {
@@ -735,7 +780,8 @@ svg {
   .dot-logo {
     transform: scale(0.82);
     transform-origin: left center;
-    width: 260px;
+    width: 320px;
+    max-width: 320px;
   }
 
   .title-block h1 {

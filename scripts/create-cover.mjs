@@ -140,13 +140,6 @@ function buildCoverHtml() {
         opacity: 0;
       }
 
-      .registered {
-        align-self: flex-start;
-        margin-top: 2px;
-        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-        font-size: 15px;
-      }
-
       h1 {
         margin: 0;
         font-size: 76px;
@@ -371,11 +364,10 @@ function buildCoverHtml() {
       <div class="plus two">+</div>
       <section class="copy">
         <div class="brand">
-          <div class="dot-word">${dotWord('NOTHING')}</div>
-          <span class="registered">&reg;</span>
+          <div class="dot-word">${dotWord('ARVO')}</div>
         </div>
         <h1>Invoice App</h1>
-        <p class="mono">Nothing OS inspired billing</p>
+        <p class="mono">Brandable dot-matrix billing</p>
         <p class="summary">A sharp editable invoice with live totals, extension-ready files, and print output that keeps the design intact.</p>
         <div class="pills">
           <span class="pill">Editable</span>
@@ -387,7 +379,7 @@ function buildCoverHtml() {
         <article class="invoice">
           <header class="invoice-head">
             <div>
-              <div class="mini-logo">${dotWord('NOTHING')}</div>
+              <div class="mini-logo">${dotWord('ARVO')}</div>
               <p class="label" style="margin-top: 10px;">Design Studio</p>
             </div>
             <div>
@@ -439,6 +431,9 @@ function buildCoverHtml() {
 
 function dotWord(word) {
   const letters = {
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
     N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
     O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
     T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],

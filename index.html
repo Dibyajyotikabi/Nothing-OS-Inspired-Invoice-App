@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nothing Invoice App</title>
+    <title>Dot Matrix Invoice App</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
@@ -15,6 +15,29 @@
           <span id="toolbarInvoiceNumber">INV-24.001</span>
         </div>
         <div class="toolbar-actions">
+          <label class="tool-field">
+            <span>Brand</span>
+            <select id="brandModeControl" aria-label="Brand display mode">
+              <option value="text">Text</option>
+              <option value="logo">Logo</option>
+            </select>
+          </label>
+          <label class="tool-field company-field">
+            <span>Company</span>
+            <input id="companyNameControl" type="text" maxlength="28" aria-label="Company name" />
+          </label>
+          <label class="tool-button file-button" for="logoUploadControl" title="Upload logo" aria-label="Upload logo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12M7 8l5-5 5 5M5 15v4h14v-4" />
+            </svg>
+            <span>Logo</span>
+          </label>
+          <input class="visually-hidden" id="logoUploadControl" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+          <button class="tool-button icon-only" id="removeLogoButton" type="button" title="Remove logo" aria-label="Remove uploaded logo" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" />
+            </svg>
+          </button>
           <label class="tool-field">
             <span>Status</span>
             <select id="statusControl" aria-label="Invoice status">

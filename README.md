@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/github-cover.png" alt="Nothing OS Inspired Invoice App cover" width="100%">
+  <img src="assets/github-cover.png" alt="Dot Matrix Invoice App cover" width="100%">
 </p>
 
-# Nothing OS Inspired Invoice App
+# Dot Matrix Invoice App
 
 Editable invoice page with a studio layout, live totals, extension files, and print output that keeps the design intact.
 
