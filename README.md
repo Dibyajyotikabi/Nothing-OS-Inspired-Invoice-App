@@ -4,11 +4,15 @@
 
 # Dot Matrix Invoice App
 
-Editable invoice page with a studio layout, live totals, extension files, and print output that keeps the design intact.
+Editable invoice page with a brandable studio layout, live totals, extension files, and print output that keeps the design intact.
 
 ## Highlights
 
 - Edit invoice, studio, client, payment, notes, and line item text in place.
+- Use a text brand, uploaded logo, editable tagline, and multiple company-name fonts.
+- Switch between common currencies and GST/VAT presets, including Indian GST.
+- Generate an invoice number from the toolbar.
+- Fill the invoice from a pasted client/project brief.
 - Add or remove line items.
 - Update status and tax rate from the toolbar.
 - Save changes in local browser storage.

@@ -364,7 +364,7 @@ function buildCoverHtml() {
       <div class="plus two">+</div>
       <section class="copy">
         <div class="brand">
-          <div class="dot-word">${dotWord('ARVO')}</div>
+          <div class="dot-word">${dotWord('INVO')}</div>
         </div>
         <h1>Invoice App</h1>
         <p class="mono">Brandable dot-matrix billing</p>
@@ -379,8 +379,8 @@ function buildCoverHtml() {
         <article class="invoice">
           <header class="invoice-head">
             <div>
-              <div class="mini-logo">${dotWord('ARVO')}</div>
-              <p class="label" style="margin-top: 10px;">Design Studio</p>
+              <div class="mini-logo">${dotWord('INVO')}</div>
+              <p class="label" style="margin-top: 10px;">Company Tagline</p>
             </div>
             <div>
               <div class="invoice-title">${spacedText('INVOICE')}</div>
@@ -391,9 +391,9 @@ function buildCoverHtml() {
             <div class="contact">
               <span>123 Design Street</span>
               <div class="line"></div>
-              <span>hello@arvostudio.com</span>
+              <span>hello@yourcompany.com</span>
               <div class="line"></div>
-              <span>www.arvostudio.com</span>
+              <span>www.yourcompany.com</span>
               <div class="line"></div>
             </div>
             <div class="details">

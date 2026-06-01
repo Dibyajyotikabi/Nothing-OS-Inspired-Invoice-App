@@ -26,6 +26,19 @@
             <span>Company</span>
             <input id="companyNameControl" type="text" maxlength="28" aria-label="Company name" />
           </label>
+          <label class="tool-field tagline-field">
+            <span>Tagline</span>
+            <input id="taglineControl" type="text" maxlength="34" aria-label="Company tagline" />
+          </label>
+          <label class="tool-field">
+            <span>Font</span>
+            <select id="brandFontControl" aria-label="Company name font">
+              <option value="dot">Dot</option>
+              <option value="sans">Sans</option>
+              <option value="mono">Mono</option>
+              <option value="serif">Serif</option>
+            </select>
+          </label>
           <label class="tool-button file-button" for="logoUploadControl" title="Upload logo" aria-label="Upload logo">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3v12M7 8l5-5 5 5M5 15v4h14v-4" />
@@ -46,10 +59,57 @@
               <option value="DRAFT">Draft</option>
             </select>
           </label>
+          <label class="tool-field currency-field">
+            <span>Currency</span>
+            <select id="currencyControl" aria-label="Invoice currency">
+              <option value="USD">USD</option>
+              <option value="INR">INR</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="AUD">AUD</option>
+              <option value="CAD">CAD</option>
+              <option value="SGD">SGD</option>
+              <option value="AED">AED</option>
+              <option value="JPY">JPY</option>
+              <option value="NZD">NZD</option>
+              <option value="ZAR">ZAR</option>
+            </select>
+          </label>
+          <label class="tool-field tax-preset-field">
+            <span>Tax Type</span>
+            <select id="taxPresetControl" aria-label="Tax type">
+              <option value="custom">Custom</option>
+              <option value="none">No tax</option>
+              <option value="india-gst-5">India GST 5%</option>
+              <option value="india-gst-12">India GST 12%</option>
+              <option value="india-gst-18">India GST 18%</option>
+              <option value="india-gst-28">India GST 28%</option>
+              <option value="india-igst-18">India IGST 18%</option>
+              <option value="australia-gst-10">Australia GST 10%</option>
+              <option value="singapore-gst-9">Singapore GST 9%</option>
+              <option value="new-zealand-gst-15">New Zealand GST 15%</option>
+              <option value="canada-gst-5">Canada GST 5%</option>
+              <option value="uk-vat-20">UK VAT 20%</option>
+              <option value="eu-vat-20">EU VAT 20%</option>
+              <option value="south-africa-vat-15">South Africa VAT 15%</option>
+            </select>
+          </label>
           <label class="tool-field">
             <span>Tax</span>
             <input id="taxControl" type="number" min="0" step="0.1" aria-label="Tax rate" />
           </label>
+          <button class="tool-button" id="generateInvoiceButton" type="button" title="Generate invoice number" aria-label="Generate invoice number">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4v6h6M20 20v-6h-6M5 19a8 8 0 0 0 13-3M19 5a8 8 0 0 0-13 3" />
+            </svg>
+            <span>Number</span>
+          </button>
+          <button class="tool-button" id="chatFillButton" type="button" title="Fill invoice from details" aria-label="Fill invoice from details">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+            <span>Chat</span>
+          </button>
           <button class="tool-button" id="addItemButton" type="button" title="Add item" aria-label="Add item">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 5v14M5 12h14" />
@@ -68,6 +128,30 @@
           </button>
         </div>
       </nav>
+
+      <section class="chat-panel" id="chatPanel" aria-label="Fill invoice from details" hidden>
+        <div class="chat-panel-inner">
+          <div class="chat-panel-copy">
+            <strong>Fill from details</strong>
+            <span>Paste client, items, dates, payment, and notes.</span>
+          </div>
+          <textarea id="chatDetailsInput" rows="7" spellcheck="true" aria-label="Invoice details"></textarea>
+          <div class="chat-actions">
+            <button class="tool-button" id="applyChatButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m5 12 4 4L19 6" />
+              </svg>
+              <span>Apply</span>
+            </button>
+            <button class="tool-button" id="closeChatButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+              <span>Close</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section class="invoice-wrap" aria-label="Editable invoice preview">
         <article class="invoice" id="invoiceDocument"></article>

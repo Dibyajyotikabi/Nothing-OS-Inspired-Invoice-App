@@ -4,15 +4,16 @@ const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'im
 
 const DEFAULT_INVOICE = {
   studio: {
-    companyName: 'Arvo Studio',
-    tagline: 'DESIGN STUDIO',
+    companyName: 'Your Company',
+    tagline: 'COMPANY TAGLINE',
     brandMode: 'text',
+    brandFont: 'dot',
     logoDataUrl: '',
     logoFileName: '',
-    email: 'hello@arvostudio.com',
+    email: 'hello@yourcompany.com',
     phone: '(415) 555-0198',
-    website: 'www.arvostudio.com',
-    address: '123 Design Street\nSan Francisco, CA 94103'
+    website: 'www.yourcompany.com',
+    address: '123 Business Street\nSan Francisco, CA 94103'
   },
   invoice: {
     number: 'INV-24.001',
@@ -33,21 +34,74 @@ const DEFAULT_INVOICE = {
   notes: 'Thank you for your business!',
   payment: {
     bank: 'Bank of America',
-    accountName: 'Arvo Design Studio',
+    accountName: 'Your Company',
     accountNumber: '1234 5678 9012',
     routingNumber: '026009593'
   },
+  currency: 'USD',
+  taxPreset: 'custom',
+  taxLabel: 'Tax',
   taxRate: 8.5
+};
+
+const CURRENCIES = new Map([
+  ['USD', { locale: 'en-US' }],
+  ['INR', { locale: 'en-IN' }],
+  ['EUR', { locale: 'de-DE' }],
+  ['GBP', { locale: 'en-GB' }],
+  ['AUD', { locale: 'en-AU' }],
+  ['CAD', { locale: 'en-CA' }],
+  ['SGD', { locale: 'en-SG' }],
+  ['AED', { locale: 'en-AE' }],
+  ['JPY', { locale: 'ja-JP', fractionDigits: 0 }],
+  ['NZD', { locale: 'en-NZ' }],
+  ['ZAR', { locale: 'en-ZA' }]
+]);
+
+const TAX_PRESETS = new Map([
+  ['custom', { label: 'Custom', taxLabel: 'Tax' }],
+  ['none', { label: 'No tax', taxLabel: 'No tax', rate: 0 }],
+  ['india-gst-5', { label: 'India GST 5%', taxLabel: 'GST India', rate: 5, split: ['CGST', 'SGST'] }],
+  ['india-gst-12', { label: 'India GST 12%', taxLabel: 'GST India', rate: 12, split: ['CGST', 'SGST'] }],
+  ['india-gst-18', { label: 'India GST 18%', taxLabel: 'GST India', rate: 18, split: ['CGST', 'SGST'] }],
+  ['india-gst-28', { label: 'India GST 28%', taxLabel: 'GST India', rate: 28, split: ['CGST', 'SGST'] }],
+  ['india-igst-18', { label: 'India IGST 18%', taxLabel: 'IGST India', rate: 18 }],
+  ['australia-gst-10', { label: 'Australia GST 10%', taxLabel: 'GST', rate: 10 }],
+  ['singapore-gst-9', { label: 'Singapore GST 9%', taxLabel: 'GST', rate: 9 }],
+  ['new-zealand-gst-15', { label: 'New Zealand GST 15%', taxLabel: 'GST', rate: 15 }],
+  ['canada-gst-5', { label: 'Canada GST 5%', taxLabel: 'GST', rate: 5 }],
+  ['uk-vat-20', { label: 'UK VAT 20%', taxLabel: 'VAT', rate: 20 }],
+  ['eu-vat-20', { label: 'EU VAT 20%', taxLabel: 'VAT', rate: 20 }],
+  ['south-africa-vat-15', { label: 'South Africa VAT 15%', taxLabel: 'VAT', rate: 15 }]
+]);
+
+const LEGACY_DEFAULTS = {
+  companyNames: new Set(['Arvo Studio']),
+  taglines: new Set(['DESIGN STUDIO', 'Design Studio']),
+  emails: new Set(['hello@arvostudio.com']),
+  websites: new Set(['www.arvostudio.com']),
+  addresses: new Set(['123 Design Street\nSan Francisco, CA 94103']),
+  accountNames: new Set(['Arvo Studio', 'Arvo Design Studio'])
 };
 
 const invoiceDocument = document.querySelector('#invoiceDocument');
 const toolbarInvoiceNumber = document.querySelector('#toolbarInvoiceNumber');
 const brandModeControl = document.querySelector('#brandModeControl');
 const companyNameControl = document.querySelector('#companyNameControl');
+const taglineControl = document.querySelector('#taglineControl');
+const brandFontControl = document.querySelector('#brandFontControl');
 const logoUploadControl = document.querySelector('#logoUploadControl');
 const removeLogoButton = document.querySelector('#removeLogoButton');
 const statusControl = document.querySelector('#statusControl');
+const currencyControl = document.querySelector('#currencyControl');
+const taxPresetControl = document.querySelector('#taxPresetControl');
 const taxControl = document.querySelector('#taxControl');
+const generateInvoiceButton = document.querySelector('#generateInvoiceButton');
+const chatFillButton = document.querySelector('#chatFillButton');
+const chatPanel = document.querySelector('#chatPanel');
+const chatDetailsInput = document.querySelector('#chatDetailsInput');
+const applyChatButton = document.querySelector('#applyChatButton');
+const closeChatButton = document.querySelector('#closeChatButton');
 const addItemButton = document.querySelector('#addItemButton');
 const printButton = document.querySelector('#printButton');
 const resetButton = document.querySelector('#resetButton');
@@ -60,7 +114,7 @@ function loadState() {
     if (!savedState) {
       return structuredClone(DEFAULT_INVOICE);
     }
-    return {
+    const mergedState = {
       ...structuredClone(DEFAULT_INVOICE),
       ...savedState,
       studio: { ...DEFAULT_INVOICE.studio, ...savedState.studio },
@@ -69,10 +123,43 @@ function loadState() {
       payment: { ...DEFAULT_INVOICE.payment, ...savedState.payment },
       items: Array.isArray(savedState.items) && savedState.items.length ? savedState.items : structuredClone(DEFAULT_INVOICE.items)
     };
+    return migrateLegacyDefaults(mergedState);
   } catch (error) {
     console.error('Unable to load invoice state:', error);
     return structuredClone(DEFAULT_INVOICE);
   }
+}
+
+function migrateLegacyDefaults(invoiceState) {
+  if (LEGACY_DEFAULTS.companyNames.has(invoiceState.studio.companyName)) {
+    invoiceState.studio.companyName = DEFAULT_INVOICE.studio.companyName;
+  }
+  if (LEGACY_DEFAULTS.taglines.has(invoiceState.studio.tagline)) {
+    invoiceState.studio.tagline = DEFAULT_INVOICE.studio.tagline;
+  }
+  if (LEGACY_DEFAULTS.emails.has(invoiceState.studio.email)) {
+    invoiceState.studio.email = DEFAULT_INVOICE.studio.email;
+  }
+  if (LEGACY_DEFAULTS.websites.has(invoiceState.studio.website)) {
+    invoiceState.studio.website = DEFAULT_INVOICE.studio.website;
+  }
+  if (LEGACY_DEFAULTS.addresses.has(invoiceState.studio.address)) {
+    invoiceState.studio.address = DEFAULT_INVOICE.studio.address;
+  }
+  if (LEGACY_DEFAULTS.accountNames.has(invoiceState.payment.accountName)) {
+    invoiceState.payment.accountName = invoiceState.studio.companyName || DEFAULT_INVOICE.payment.accountName;
+  }
+  return invoiceState;
+}
+
+function isDefaultPaymentAccount(value, previousCompanyName = '') {
+  const defaultAccountNames = new Set([
+    DEFAULT_INVOICE.payment.accountName,
+    DEFAULT_INVOICE.studio.companyName,
+    previousCompanyName,
+    ...LEGACY_DEFAULTS.accountNames
+  ].filter(Boolean));
+  return defaultAccountNames.has(String(value || '').trim());
 }
 
 function saveState() {
@@ -92,14 +179,23 @@ function multiline(value) {
   return escapeHtml(value).replaceAll('\n', '<br>');
 }
 
+function getCurrencyCode() {
+  return CURRENCIES.has(state.currency) ? state.currency : DEFAULT_INVOICE.currency;
+}
+
 function formatCurrency(value, compact = false) {
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
-  const formatted = new Intl.NumberFormat('en-US', {
+  const currency = getCurrencyCode();
+  const currencyConfig = CURRENCIES.get(currency);
+  const fractionDigits = currencyConfig?.fractionDigits ?? 2;
+  const formatted = new Intl.NumberFormat(currencyConfig?.locale || 'en-US', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2
+    currency,
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
   }).format(amount);
-  return compact ? formatted.replace('$', '$ ') : formatted;
+  return compact ? formatted.replace(/^(\D+)(?=\d)/, '$1 ') : formatted;
 }
 
 function parseMoney(value) {
@@ -109,8 +205,9 @@ function parseMoney(value) {
 
 function getTotals() {
   const subtotal = state.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
-  const tax = subtotal * (Number(state.taxRate || 0) / 100);
-  return { subtotal, tax, total: subtotal + tax };
+  const taxLines = getTaxLines(subtotal);
+  const tax = taxLines.reduce((sum, line) => sum + line.amount, 0);
+  return { subtotal, tax, taxLines, total: subtotal + tax };
 }
 
 function setPath(path, value) {
@@ -120,6 +217,87 @@ function setPath(path, value) {
     current = current[key];
   });
   current[keys.at(-1)] = value;
+}
+
+function getTaxPreset() {
+  return TAX_PRESETS.get(state.taxPreset) || TAX_PRESETS.get(DEFAULT_INVOICE.taxPreset);
+}
+
+function getTaxLabel() {
+  return getTaxPreset()?.taxLabel || state.taxLabel || DEFAULT_INVOICE.taxLabel;
+}
+
+function getTaxLines(subtotal) {
+  const preset = getTaxPreset();
+  const totalRate = Number(state.taxRate || 0);
+
+  if (preset?.split?.length) {
+    const splitRate = totalRate / preset.split.length;
+    return preset.split.map((label) => ({
+      label,
+      rate: splitRate,
+      amount: subtotal * (splitRate / 100)
+    }));
+  }
+
+  return [{
+    label: getTaxLabel(),
+    rate: totalRate,
+    amount: subtotal * (totalRate / 100)
+  }];
+}
+
+function renderTaxLines(taxLines) {
+  return taxLines.map((line) => `
+    <div class="total-line tax-line">
+      <span class="tiny-label">${spacedText(`${line.label} (${Number(line.rate || 0).toFixed(1)}%)`)}</span>
+      <strong data-tax>${formatCurrency(line.amount)}</strong>
+    </div>
+  `).join('');
+}
+
+function applyTaxPreset(presetId) {
+  const preset = TAX_PRESETS.get(presetId) || TAX_PRESETS.get('custom');
+  state.taxPreset = presetId && TAX_PRESETS.has(presetId) ? presetId : 'custom';
+  state.taxLabel = preset.taxLabel || DEFAULT_INVOICE.taxLabel;
+
+  if (Number.isFinite(Number(preset.rate))) {
+    state.taxRate = Number(preset.rate);
+  }
+}
+
+function normalizeCurrency(value) {
+  const currency = String(value || '').trim().toUpperCase();
+  return CURRENCIES.has(currency) ? currency : '';
+}
+
+function findTaxPreset(value) {
+  const normalizedValue = normalizeLabel(value);
+  if (!normalizedValue) return '';
+
+  for (const [id, preset] of TAX_PRESETS) {
+    const normalizedId = normalizeLabel(id);
+    const normalizedLabel = normalizeLabel(preset.label);
+    if (normalizedValue === normalizedId || normalizedValue === normalizedLabel) {
+      return id;
+    }
+  }
+
+  if (normalizedValue.includes('no tax') || normalizedValue === 'none') return 'none';
+  if (normalizedValue.includes('igst') && normalizedValue.includes('india')) return 'india-igst-18';
+  if (normalizedValue.includes('india') && normalizedValue.includes('28')) return 'india-gst-28';
+  if (normalizedValue.includes('india') && normalizedValue.includes('18')) return 'india-gst-18';
+  if (normalizedValue.includes('india') && normalizedValue.includes('12')) return 'india-gst-12';
+  if (normalizedValue.includes('india') && normalizedValue.includes('5')) return 'india-gst-5';
+  if (normalizedValue.includes('australia') || normalizedValue.includes('australian')) return 'australia-gst-10';
+  if (normalizedValue.includes('singapore')) return 'singapore-gst-9';
+  if (normalizedValue.includes('new zealand') || normalizedValue.includes('nz')) return 'new-zealand-gst-15';
+  if (normalizedValue.includes('canada')) return 'canada-gst-5';
+  if (normalizedValue.includes('uk') || normalizedValue.includes('united kingdom')) return 'uk-vat-20';
+  if (normalizedValue.includes('eu') || normalizedValue.includes('europe')) return 'eu-vat-20';
+  if (normalizedValue.includes('south africa')) return 'south-africa-vat-15';
+
+  return '';
 }
 
 const DOT_FONT = {
@@ -186,6 +364,17 @@ function dotMatrixMarkup(value) {
   return [...normalizeBrandText(value)].map(dotLetterMarkup).join('');
 }
 
+function normalizePlainBrandText(value) {
+  return String(value || DEFAULT_INVOICE.studio.companyName)
+    .replace(/\s+/g, ' ')
+    .trim() || DEFAULT_INVOICE.studio.companyName;
+}
+
+function getBrandFont() {
+  const allowedFonts = new Set(['dot', 'sans', 'mono', 'serif']);
+  return allowedFonts.has(state.studio.brandFont) ? state.studio.brandFont : 'dot';
+}
+
 function spacedText(text) {
   return [...text].map((char) => `<span>${escapeHtml(char)}</span>`).join('');
 }
@@ -225,10 +414,17 @@ function isSafeLogoDataUrl(value) {
 }
 
 function getBrandMarkup() {
-  const companyName = state.studio.companyName || DEFAULT_INVOICE.studio.companyName;
+  const companyName = state.studio.companyName ?? DEFAULT_INVOICE.studio.companyName;
   if (state.studio.brandMode === 'logo' && isSafeLogoDataUrl(state.studio.logoDataUrl)) {
     return `
       <img class="brand-logo-image" src="${state.studio.logoDataUrl}" alt="${escapeHtml(companyName)} logo" />
+    `;
+  }
+
+  const brandFont = getBrandFont();
+  if (brandFont !== 'dot') {
+    return `
+      <div class="brand-text-logo brand-font-${brandFont}">${escapeHtml(normalizePlainBrandText(companyName))}</div>
     `;
   }
 
@@ -269,7 +465,7 @@ function renderInvoice() {
         <div class="brand-line">
           ${getBrandMarkup()}
         </div>
-        <p class="studio-label editable" contenteditable="true" data-path="studio.tagline">${spacedText(state.studio.tagline || DEFAULT_INVOICE.studio.tagline)}</p>
+        <p class="studio-label editable" contenteditable="true" data-path="studio.tagline" data-brand-tagline>${spacedText(state.studio.tagline ?? DEFAULT_INVOICE.studio.tagline)}</p>
       </div>
       <div class="title-block">
         <h1>${spacedText('INVOICE')}</h1>
@@ -339,9 +535,8 @@ function renderInvoice() {
           <span class="tiny-label">${spacedText('SUBTOTAL')}</span>
           <strong data-subtotal>${formatCurrency(totals.subtotal)}</strong>
         </div>
-        <div class="total-line">
-          <span class="tiny-label">${spacedText(`TAX (${Number(state.taxRate || 0).toFixed(1)}%)`)}</span>
-          <strong data-tax>${formatCurrency(totals.tax)}</strong>
+        <div class="tax-lines" data-tax-lines>
+          ${renderTaxLines(totals.taxLines)}
         </div>
         <div class="dash-line"></div>
         <p class="tiny-label">${spacedText('TOTAL')}</p>
@@ -361,9 +556,13 @@ function renderInvoice() {
 function updateToolbar() {
   toolbarInvoiceNumber.textContent = state.invoice.number;
   brandModeControl.value = state.studio.brandMode || 'text';
-  companyNameControl.value = state.studio.companyName || DEFAULT_INVOICE.studio.companyName;
+  companyNameControl.value = state.studio.companyName ?? DEFAULT_INVOICE.studio.companyName;
+  taglineControl.value = state.studio.tagline ?? DEFAULT_INVOICE.studio.tagline;
+  brandFontControl.value = getBrandFont();
   removeLogoButton.hidden = !isSafeLogoDataUrl(state.studio.logoDataUrl);
   statusControl.value = state.invoice.status;
+  currencyControl.value = getCurrencyCode();
+  taxPresetControl.value = TAX_PRESETS.has(state.taxPreset) ? state.taxPreset : 'custom';
   taxControl.value = Number(state.taxRate || 0).toFixed(1);
 }
 
@@ -377,10 +576,8 @@ function updateTotals() {
 
   const totals = getTotals();
   document.querySelector('[data-subtotal]').textContent = formatCurrency(totals.subtotal);
-  document.querySelector('[data-tax]').textContent = formatCurrency(totals.tax);
+  document.querySelector('[data-tax-lines]').innerHTML = renderTaxLines(totals.taxLines);
   document.querySelector('[data-total]').textContent = formatCurrency(totals.total, true);
-  const taxLabel = document.querySelector('.totals-panel .total-line:nth-child(2) .tiny-label');
-  taxLabel.innerHTML = spacedText(`TAX (${Number(state.taxRate || 0).toFixed(1)}%)`);
 }
 
 function getPrintFitScript() {
@@ -475,6 +672,212 @@ function readLogoFile(file) {
   });
 }
 
+function generateInvoiceNumber() {
+  const now = new Date();
+  const year = String(now.getFullYear()).slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  return `INV-${year}${month}${day}-${hour}${minute}`;
+}
+
+function normalizeLabel(label) {
+  return String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function setFieldValue(fieldValues, key, value) {
+  if (!value) return;
+  fieldValues[key] = String(value).trim();
+}
+
+function parseLineItem(line) {
+  const cleaned = String(line || '').replace(/^[-*+]\s*/, '').trim();
+  if (!cleaned) return null;
+
+  const priceMatch = cleaned.match(/(?:price|rate|unit|amount)?\s*\$?\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
+  if (!priceMatch) return null;
+
+  const quantityMatch = cleaned.match(/(?:qty|quantity)\s*[:=]?\s*(\d+(?:\.\d+)?)/i)
+    || cleaned.match(/\b(\d+(?:\.\d+)?)\s*x\b/i)
+    || cleaned.match(/\bx\s*(\d+(?:\.\d+)?)\b/i);
+  const quantity = quantityMatch ? Number(quantityMatch[1]) : 1;
+  const unitPrice = parseMoney(priceMatch[1]);
+  const description = cleaned
+    .slice(0, priceMatch.index)
+    .replace(/(?:qty|quantity)\s*[:=]?\s*\d+(?:\.\d+)?/ig, '')
+    .replace(/\b\d+(?:\.\d+)?\s*x\b/ig, '')
+    .replace(/\bx\s*\d+(?:\.\d+)?\b/ig, '')
+    .replace(/[,|-]+$/g, '')
+    .trim();
+
+  if (!description || !Number.isFinite(quantity) || !Number.isFinite(unitPrice)) {
+    return null;
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    description,
+    quantity,
+    unitPrice
+  };
+}
+
+function parseInvoiceDetails(text) {
+  const fieldValues = {};
+  const items = [];
+  const multilineFields = new Set(['studio.address', 'client.address', 'notes']);
+  const labelMap = new Map([
+    ['company', 'studio.companyName'],
+    ['company name', 'studio.companyName'],
+    ['business', 'studio.companyName'],
+    ['business name', 'studio.companyName'],
+    ['tagline', 'studio.tagline'],
+    ['studio label', 'studio.tagline'],
+    ['subtitle', 'studio.tagline'],
+    ['font', 'studio.brandFont'],
+    ['brand font', 'studio.brandFont'],
+    ['currency', 'currency'],
+    ['email', 'studio.email'],
+    ['phone', 'studio.phone'],
+    ['website', 'studio.website'],
+    ['site', 'studio.website'],
+    ['studio address', 'studio.address'],
+    ['business address', 'studio.address'],
+    ['from address', 'studio.address'],
+    ['invoice', 'invoice.number'],
+    ['invoice no', 'invoice.number'],
+    ['invoice number', 'invoice.number'],
+    ['issue date', 'invoice.issueDate'],
+    ['date', 'invoice.issueDate'],
+    ['due date', 'invoice.dueDate'],
+    ['status', 'invoice.status'],
+    ['client', 'client.name'],
+    ['client name', 'client.name'],
+    ['bill to', 'client.name'],
+    ['customer', 'client.name'],
+    ['customer name', 'client.name'],
+    ['client address', 'client.address'],
+    ['billing address', 'client.address'],
+    ['customer address', 'client.address'],
+    ['tax', 'taxRate'],
+    ['tax rate', 'taxRate'],
+    ['tax type', 'taxPreset'],
+    ['tax option', 'taxPreset'],
+    ['tax preset', 'taxPreset'],
+    ['gst', 'taxPreset'],
+    ['vat', 'taxPreset'],
+    ['notes', 'notes'],
+    ['note', 'notes'],
+    ['bank', 'payment.bank'],
+    ['bank name', 'payment.bank'],
+    ['account name', 'payment.accountName'],
+    ['account no', 'payment.accountNumber'],
+    ['account number', 'payment.accountNumber'],
+    ['routing no', 'payment.routingNumber'],
+    ['routing number', 'payment.routingNumber']
+  ]);
+  const itemLabels = new Set(['items', 'item', 'line items', 'services', 'service']);
+
+  let currentField = '';
+  let inItems = false;
+
+  String(text || '').replace(/\r/g, '').split('\n').forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    const labelMatch = line.match(/^([a-zA-Z][a-zA-Z0-9 /_-]{1,28})\s*:\s*(.*)$/);
+    if (labelMatch) {
+      const label = normalizeLabel(labelMatch[1]);
+      const value = labelMatch[2].trim();
+
+      if (itemLabels.has(label)) {
+        inItems = true;
+        currentField = '';
+        const parsedItem = parseLineItem(value);
+        if (parsedItem) items.push(parsedItem);
+        return;
+      }
+
+      const key = labelMap.get(label);
+      if (key) {
+        inItems = false;
+        currentField = multilineFields.has(key) ? key : '';
+        setFieldValue(fieldValues, key, value);
+        return;
+      }
+    }
+
+    if (inItems || /^[-*+]\s+/.test(line)) {
+      const parsedItem = parseLineItem(line);
+      if (parsedItem) items.push(parsedItem);
+      return;
+    }
+
+    if (currentField) {
+      fieldValues[currentField] = [fieldValues[currentField], line].filter(Boolean).join('\n');
+    }
+  });
+
+  return { fieldValues, items };
+}
+
+function applyParsedInvoiceDetails(parsedDetails) {
+  const { fieldValues, items } = parsedDetails;
+  const previousCompanyName = state.studio.companyName;
+
+  Object.entries(fieldValues).forEach(([path, value]) => {
+    if (path === 'taxRate') {
+      state.taxRate = parseMoney(value);
+      state.taxPreset = 'custom';
+      state.taxLabel = DEFAULT_INVOICE.taxLabel;
+      return;
+    }
+    if (path === 'taxPreset') {
+      const presetId = findTaxPreset(value);
+      if (presetId) {
+        applyTaxPreset(presetId);
+      }
+      return;
+    }
+    if (path === 'currency') {
+      const currency = normalizeCurrency(value);
+      if (currency) {
+        state.currency = currency;
+      }
+      return;
+    }
+    if (path === 'invoice.status') {
+      state.invoice.status = value.toUpperCase();
+      return;
+    }
+    if (path === 'studio.brandFont') {
+      const font = normalizeLabel(value);
+      if (['dot', 'sans', 'mono', 'serif'].includes(font)) {
+        state.studio.brandFont = font;
+        state.studio.brandMode = 'text';
+      }
+      return;
+    }
+    setPath(path, value);
+  });
+
+  if (
+    fieldValues['studio.companyName']
+    && !fieldValues['payment.accountName']
+    && isDefaultPaymentAccount(state.payment.accountName, previousCompanyName)
+  ) {
+    state.payment.accountName = state.studio.companyName;
+  }
+
+  if (items.length) {
+    state.items = items;
+  }
+
+  saveState();
+  renderInvoice();
+}
+
 invoiceDocument.addEventListener('input', (event) => {
   const editable = event.target.closest('.editable');
   if (!editable) return;
@@ -486,6 +889,9 @@ invoiceDocument.addEventListener('input', (event) => {
         if (node !== editable) node.textContent = state.invoice.number;
       });
       toolbarInvoiceNumber.textContent = state.invoice.number;
+    }
+    if (editable.dataset.path === 'studio.tagline') {
+      taglineControl.value = state.studio.tagline;
     }
   }
 
@@ -545,8 +951,26 @@ brandModeControl.addEventListener('change', () => {
   renderInvoice();
 });
 
+brandFontControl.addEventListener('change', () => {
+  state.studio.brandFont = brandFontControl.value;
+  state.studio.brandMode = 'text';
+  saveState();
+  renderInvoice();
+});
+
 companyNameControl.addEventListener('input', () => {
-  state.studio.companyName = companyNameControl.value.trim() || DEFAULT_INVOICE.studio.companyName;
+  const previousCompanyName = state.studio.companyName;
+  if (isDefaultPaymentAccount(state.payment.accountName, previousCompanyName)) {
+    state.payment.accountName = companyNameControl.value || DEFAULT_INVOICE.payment.accountName;
+  }
+  state.studio.companyName = companyNameControl.value;
+  state.studio.brandMode = 'text';
+  saveState();
+  renderInvoice();
+});
+
+taglineControl.addEventListener('input', () => {
+  state.studio.tagline = taglineControl.value;
   saveState();
   renderInvoice();
 });
@@ -582,14 +1006,52 @@ removeLogoButton.addEventListener('click', () => {
   renderInvoice();
 });
 
+generateInvoiceButton.addEventListener('click', () => {
+  state.invoice.number = generateInvoiceNumber();
+  saveState();
+  renderInvoice();
+});
+
+chatFillButton.addEventListener('click', () => {
+  chatPanel.hidden = !chatPanel.hidden;
+  if (!chatPanel.hidden) {
+    chatDetailsInput.focus();
+  }
+});
+
+closeChatButton.addEventListener('click', () => {
+  chatPanel.hidden = true;
+});
+
+applyChatButton.addEventListener('click', () => {
+  const parsedDetails = parseInvoiceDetails(chatDetailsInput.value);
+  applyParsedInvoiceDetails(parsedDetails);
+  chatPanel.hidden = true;
+});
+
 statusControl.addEventListener('change', () => {
   state.invoice.status = statusControl.value;
   saveState();
   document.querySelector('[data-status-value] span:last-child').textContent = state.invoice.status;
 });
 
+currencyControl.addEventListener('change', () => {
+  state.currency = currencyControl.value;
+  saveState();
+  renderInvoice();
+});
+
+taxPresetControl.addEventListener('change', () => {
+  applyTaxPreset(taxPresetControl.value);
+  saveState();
+  renderInvoice();
+});
+
 taxControl.addEventListener('input', () => {
   state.taxRate = Number(taxControl.value || 0);
+  state.taxPreset = 'custom';
+  state.taxLabel = DEFAULT_INVOICE.taxLabel;
+  taxPresetControl.value = state.taxPreset;
   updateTotals();
   saveState();
 });
