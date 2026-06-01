@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "build:ext": "node scripts/build-ext.mjs",
+    "cover": "node scripts/create-cover.mjs",
     "dev": "npx http-server . -p 4173 -c-1",
     "start": "npm run dev"
   },

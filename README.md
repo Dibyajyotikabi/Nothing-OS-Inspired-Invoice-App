@@ -1,8 +1,12 @@
-# Simple Invoice App
+<p align="center">
+  <img src="assets/github-cover.png" alt="Nothing OS Inspired Invoice App cover" width="100%">
+</p>
 
-Editable invoice page with a clean studio layout, live totals, and print output that keeps the same design.
+# Nothing OS Inspired Invoice App
 
-## Features
+Editable invoice page with a studio layout, live totals, extension files, and print output that keeps the design intact.
+
+## Highlights
 
 - Edit invoice, studio, client, payment, notes, and line item text in place.
 - Add or remove line items.
@@ -10,6 +14,10 @@ Editable invoice page with a clean studio layout, live totals, and print output 
 - Save changes in local browser storage.
 - Print a one-page A4 invoice with the desktop layout preserved.
 - Load as a simple browser page or as a Chrome extension from `dist/`.
+
+## Preview
+
+The interface is built around the invoice itself. The toolbar stays small, the document keeps a print-ready paper layout, and mobile screens get a compact line-item view.
 
 ## Run Locally
 
@@ -24,7 +32,7 @@ You can also open `index.html` directly in a browser.
 
 ## Build Extension Files
 
-Root source files are the editable source. Chrome extension files are generated into `dist/`.
+Root source files are the editable source. Chrome extension files are copied into `dist/`.
 
 ```bash
 npm run build:ext
@@ -39,3 +47,5 @@ To test as an extension, load the `dist/` folder as an unpacked extension in Chr
 - `src/styles.css`: screen, mobile, and print styles
 - `manifest.json`: extension manifest
 - `scripts/build-ext.mjs`: copies root source into `dist/`
+- `scripts/create-cover.mjs`: creates the GitHub cover image
+- `assets/github-cover.png`: repository cover image
