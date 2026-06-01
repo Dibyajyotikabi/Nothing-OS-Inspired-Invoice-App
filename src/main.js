@@ -36,7 +36,8 @@ const DEFAULT_INVOICE = {
     bank: 'Bank of America',
     accountName: 'Your Company',
     accountNumber: '1234 5678 9012',
-    routingNumber: '026009593'
+    routingNumber: '026009593',
+    terms: '14 days'
   },
   currency: 'USD',
   taxPreset: 'custom',
@@ -247,6 +248,10 @@ function getTaxLines(subtotal) {
   }];
 }
 
+function getPaymentTerms() {
+  return String(state.payment.terms || DEFAULT_INVOICE.payment.terms).trim() || DEFAULT_INVOICE.payment.terms;
+}
+
 function renderTaxLines(taxLines) {
   return taxLines.map((line) => `
     <div class="total-line tax-line">
@@ -271,9 +276,12 @@ function normalizeCurrency(value) {
   return CURRENCIES.has(currency) ? currency : '';
 }
 
-function findTaxPreset(value) {
+function findTaxPreset(value, currencyCode = state.currency) {
   const normalizedValue = normalizeLabel(value);
   if (!normalizedValue) return '';
+  const currency = normalizeCurrency(currencyCode) || getCurrencyCode();
+  const rateMatch = normalizedValue.match(/\b(5|9|10|12|15|18|20|28)\b/);
+  const rate = rateMatch?.[1] || '';
 
   for (const [id, preset] of TAX_PRESETS) {
     const normalizedId = normalizeLabel(id);
@@ -284,7 +292,8 @@ function findTaxPreset(value) {
   }
 
   if (normalizedValue.includes('no tax') || normalizedValue === 'none') return 'none';
-  if (normalizedValue.includes('igst') && normalizedValue.includes('india')) return 'india-igst-18';
+
+  if (normalizedValue.includes('igst') && (!rate || rate === '18')) return 'india-igst-18';
   if (normalizedValue.includes('india') && normalizedValue.includes('28')) return 'india-gst-28';
   if (normalizedValue.includes('india') && normalizedValue.includes('18')) return 'india-gst-18';
   if (normalizedValue.includes('india') && normalizedValue.includes('12')) return 'india-gst-12';
@@ -296,6 +305,22 @@ function findTaxPreset(value) {
   if (normalizedValue.includes('uk') || normalizedValue.includes('united kingdom')) return 'uk-vat-20';
   if (normalizedValue.includes('eu') || normalizedValue.includes('europe')) return 'eu-vat-20';
   if (normalizedValue.includes('south africa')) return 'south-africa-vat-15';
+
+  if (normalizedValue.includes('gst')) {
+    if ((currency === 'INR' || normalizedValue.includes('cgst') || normalizedValue.includes('sgst')) && ['5', '12', '18', '28'].includes(rate)) {
+      return `india-gst-${rate}`;
+    }
+    if (currency === 'AUD' && (!rate || rate === '10')) return 'australia-gst-10';
+    if (currency === 'SGD' && (!rate || rate === '9')) return 'singapore-gst-9';
+    if (currency === 'NZD' && (!rate || rate === '15')) return 'new-zealand-gst-15';
+    if (currency === 'CAD' && (!rate || rate === '5')) return 'canada-gst-5';
+  }
+
+  if (normalizedValue.includes('vat')) {
+    if (currency === 'GBP' && (!rate || rate === '20')) return 'uk-vat-20';
+    if (currency === 'ZAR' && (!rate || rate === '15')) return 'south-africa-vat-15';
+    if (!rate || rate === '20') return 'eu-vat-20';
+  }
 
   return '';
 }
@@ -544,7 +569,7 @@ function renderInvoice() {
         <div class="barcode" aria-hidden="true"></div>
         <div class="payment-note">
           <span class="circle-arrow">${icon('arrow')}</span>
-          <p>Please make payment within <strong>14 days</strong> of the invoice date.</p>
+          <p>Please make payment within <strong class="editable" contenteditable="true" data-path="payment.terms">${escapeHtml(getPaymentTerms())}</strong> of the invoice date.</p>
         </div>
       </aside>
     </section>
@@ -593,12 +618,40 @@ function getPrintFitScript() {
 
         document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
         document.documentElement.style.setProperty('--print-margin-x', marginX.toFixed(2) + 'px');
+      }
+
+      function waitForPrintAssets() {
+        const imagePromises = Array.from(document.images)
+          .filter((image) => !image.complete)
+          .map((image) => new Promise((resolve) => {
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', resolve, { once: true });
+          }));
+        const fontPromise = document.fonts?.ready?.catch(() => undefined) || Promise.resolve();
+        return Promise.all([fontPromise, ...imagePromises]);
       }`;
+}
+
+function getCurrentStylesheetText() {
+  return Array.from(document.styleSheets)
+    .map((sheet) => {
+      try {
+        return Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n');
+      } catch (error) {
+        return '';
+      }
+    })
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function getPrintDocumentHtml() {
   const stylesheetUrl = new URL('src/styles.css', window.location.href).href;
   const invoiceNumber = state.invoice.number.replace(/[^a-z0-9.-]+/gi, '-');
+  const stylesheetText = getCurrentStylesheetText();
+  const stylesheetTag = stylesheetText
+    ? `<style>${stylesheetText.replace(/<\/style/gi, '<\\/style')}</style>`
+    : `<link rel="stylesheet" href="${stylesheetUrl}" />`;
 
   return `<!doctype html>
 <html lang="en">
@@ -607,7 +660,7 @@ function getPrintDocumentHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Invoice ${escapeHtml(invoiceNumber)}</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="${stylesheetUrl}" />
+    ${stylesheetTag}
   </head>
   <body class="print-window">
     <main class="print-page">
@@ -616,10 +669,12 @@ function getPrintDocumentHtml() {
     <script>
 ${getPrintFitScript()}
       window.addEventListener('load', () => {
-        fitInvoiceForPrint();
-        requestAnimationFrame(() => {
-          window.focus();
-          window.print();
+        waitForPrintAssets().then(() => {
+          fitInvoiceForPrint();
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            window.focus();
+            window.print();
+          }));
         });
       });
     <\/script>
@@ -636,11 +691,9 @@ function printInvoice() {
 
   if (!printWindow) {
     const fitScript = document.createElement('script');
-    fitScript.textContent = `${getPrintFitScript()}; fitInvoiceForPrint();`;
+    fitScript.textContent = `${getPrintFitScript()}; waitForPrintAssets().then(() => { fitInvoiceForPrint(); window.focus(); window.print(); });`;
     document.body.append(fitScript);
-    window.focus();
-    window.print();
-    fitScript.remove();
+    setTimeout(() => fitScript.remove(), 1000);
     return;
   }
 
@@ -686,9 +739,105 @@ function normalizeLabel(label) {
   return String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function setFieldValue(fieldValues, key, value) {
-  if (!value) return;
-  fieldValues[key] = String(value).trim();
+function setFieldValue(fieldValues, key, value, options = {}) {
+  const cleanValue = String(value ?? '').trim();
+  if (!cleanValue) return false;
+  fieldValues[key] = options.append && fieldValues[key]
+    ? `${fieldValues[key]}\n${cleanValue}`
+    : cleanValue;
+  return true;
+}
+
+function parseLabeledLine(line) {
+  const labelMatch = String(line || '').match(/^([a-zA-Z][a-zA-Z0-9 /_.-]{0,38}?)\s*(?::|=|\s-\s|\s\u2013\s|\s\u2014\s)\s*(.*)$/);
+  if (!labelMatch) return null;
+
+  return {
+    label: normalizeLabel(labelMatch[1]),
+    value: labelMatch[2].trim()
+  };
+}
+
+function normalizePaymentTerms(value) {
+  const cleanValue = String(value || '').trim().replace(/^within\s+/i, '');
+  const netDays = cleanValue.match(/^net\s+(\d+)$/i);
+  if (netDays) return `${netDays[1]} days`;
+  if (/^\d+$/.test(cleanValue)) return `${cleanValue} days`;
+  return cleanValue || DEFAULT_INVOICE.payment.terms;
+}
+
+function parseNaturalLabeledLine(line) {
+  const naturalMatch = String(line || '').match(/^(company|business|client|customer|bill to|tagline|font|currency|status|invoice(?: no| number)?|issue date|due date|email|phone|website|site|bank|notes?|payment terms|terms|gst|vat|tax)\s+(.+)$/i);
+  if (!naturalMatch) return null;
+
+  return {
+    label: normalizeLabel(naturalMatch[1]),
+    value: naturalMatch[2].trim()
+  };
+}
+
+function inferCurrencyFromText(text) {
+  const value = String(text || '');
+  if (/[₹]|(?:\brs\.?\b|\brupees?\b)/i.test(value)) return 'INR';
+  if (/[€]/.test(value)) return 'EUR';
+  if (/[£]/.test(value)) return 'GBP';
+  if (/\b(?:dollars?|usd)\b|[$]/i.test(value)) return 'USD';
+
+  for (const currency of CURRENCIES.keys()) {
+    if (new RegExp(`\\b${currency}\\b`, 'i').test(value)) {
+      return currency;
+    }
+  }
+
+  return '';
+}
+
+function inferTaxFromText(text, currencyCode = state.currency) {
+  const value = String(text || '');
+  const noTaxMatch = value.match(/\b(?:no tax|tax free|zero tax)\b/i);
+  if (noTaxMatch) return { preset: 'none' };
+
+  const taxMatch = value.match(/\b(gst|igst|vat|tax)\b[^0-9\n\r]{0,24}(\d+(?:\.\d+)?)\s*%?/i);
+  if (!taxMatch) return null;
+
+  const taxKind = taxMatch[1].toUpperCase();
+  const rate = Number(taxMatch[2]);
+  const preset = findTaxPreset(`${taxKind} ${rate}`, currencyCode);
+  if (preset) return { preset };
+  if (Number.isFinite(rate)) return { rate };
+
+  return null;
+}
+
+function isLikelyClientNameLine(line) {
+  const value = String(line || '').trim();
+  if (!value || value.length > 80) return false;
+  if (parseLineItem(value)) return false;
+  if (parseLabeledLine(value) || parseNaturalLabeledLine(value)) return false;
+  if (/@|https?:|www\.|[₹$€£]|\b(?:gst|igst|vat|tax|invoice|status|paid|due|draft|currency|inr|usd|eur|gbp|aud|cad|sgd|aed|jpy|nzd|zar|bank|account|routing|phone|email|website|address|date|qty|quantity|total|subtotal)\b/i.test(value)) {
+    return false;
+  }
+  return /[A-Za-z]/.test(value);
+}
+
+function applyFreeformHints(fieldValues, freeformLines, fullText) {
+  if (!fieldValues.currency) {
+    setFieldValue(fieldValues, 'currency', inferCurrencyFromText(fullText));
+  }
+
+  if (!fieldValues.taxPreset && !fieldValues.taxRate) {
+    const inferredTax = inferTaxFromText(fullText, fieldValues.currency || state.currency);
+    if (inferredTax?.preset) {
+      setFieldValue(fieldValues, 'taxPreset', inferredTax.preset);
+    } else if (Number.isFinite(inferredTax?.rate)) {
+      setFieldValue(fieldValues, 'taxRate', inferredTax.rate);
+    }
+  }
+
+  if (!fieldValues['client.name']) {
+    const clientName = freeformLines.find(isLikelyClientNameLine);
+    setFieldValue(fieldValues, 'client.name', clientName);
+  }
 }
 
 function parseLineItem(line) {
@@ -741,6 +890,11 @@ function parseInvoiceDetails(text) {
     ['email', 'studio.email'],
     ['phone', 'studio.phone'],
     ['website', 'studio.website'],
+    ['web domain', 'studio.website'],
+    ['domain', 'studio.website'],
+    ['company domain', 'studio.website'],
+    ['business domain', 'studio.website'],
+    ['website domain', 'studio.website'],
     ['site', 'studio.website'],
     ['studio address', 'studio.address'],
     ['business address', 'studio.address'],
@@ -766,6 +920,7 @@ function parseInvoiceDetails(text) {
     ['tax option', 'taxPreset'],
     ['tax preset', 'taxPreset'],
     ['gst', 'taxPreset'],
+    ['igst', 'taxPreset'],
     ['vat', 'taxPreset'],
     ['notes', 'notes'],
     ['note', 'notes'],
@@ -775,25 +930,33 @@ function parseInvoiceDetails(text) {
     ['account no', 'payment.accountNumber'],
     ['account number', 'payment.accountNumber'],
     ['routing no', 'payment.routingNumber'],
-    ['routing number', 'payment.routingNumber']
+    ['routing number', 'payment.routingNumber'],
+    ['payment terms', 'payment.terms'],
+    ['terms', 'payment.terms'],
+    ['due within', 'payment.terms'],
+    ['payment due', 'payment.terms'],
+    ['pay within', 'payment.terms']
   ]);
   const itemLabels = new Set(['items', 'item', 'line items', 'services', 'service']);
+  const addressContinuationLabels = new Set(['attn', 'attention', 'building', 'floor', 'suite', 'unit']);
 
   let currentField = '';
+  let currentFieldMode = '';
   let inItems = false;
+  const freeformLines = [];
 
   String(text || '').replace(/\r/g, '').split('\n').forEach((rawLine) => {
     const line = rawLine.trim();
     if (!line) return;
 
-    const labelMatch = line.match(/^([a-zA-Z][a-zA-Z0-9 /_-]{1,28})\s*:\s*(.*)$/);
-    if (labelMatch) {
-      const label = normalizeLabel(labelMatch[1]);
-      const value = labelMatch[2].trim();
+    const labeledLine = parseLabeledLine(line) || parseNaturalLabeledLine(line);
+    if (labeledLine) {
+      const { label, value } = labeledLine;
 
       if (itemLabels.has(label)) {
         inItems = true;
         currentField = '';
+        currentFieldMode = '';
         const parsedItem = parseLineItem(value);
         if (parsedItem) items.push(parsedItem);
         return;
@@ -802,8 +965,26 @@ function parseInvoiceDetails(text) {
       const key = labelMap.get(label);
       if (key) {
         inItems = false;
-        currentField = multilineFields.has(key) ? key : '';
-        setFieldValue(fieldValues, key, value);
+        const isMultilineField = multilineFields.has(key);
+        const fieldValue = key === 'taxPreset' && ['gst', 'vat', 'igst'].includes(label)
+          ? `${label} ${value}`.trim()
+          : value;
+        currentField = value ? (isMultilineField ? key : '') : key;
+        currentFieldMode = isMultilineField ? 'multiline' : 'single';
+        setFieldValue(fieldValues, key, fieldValue);
+        if (value && !isMultilineField) {
+          currentField = '';
+          currentFieldMode = '';
+        }
+        return;
+      }
+
+      if (!inItems) {
+        if (currentFieldMode === 'multiline' && currentField.endsWith('.address') && addressContinuationLabels.has(label)) {
+          setFieldValue(fieldValues, currentField, line, { append: true });
+        }
+        currentField = '';
+        currentFieldMode = '';
         return;
       }
     }
@@ -814,10 +995,25 @@ function parseInvoiceDetails(text) {
       return;
     }
 
-    if (currentField) {
-      fieldValues[currentField] = [fieldValues[currentField], line].filter(Boolean).join('\n');
+    const parsedFreeformItem = parseLineItem(line);
+    if (parsedFreeformItem) {
+      items.push(parsedFreeformItem);
+      return;
     }
+
+    if (currentField) {
+      setFieldValue(fieldValues, currentField, line, { append: currentFieldMode === 'multiline' });
+      if (currentFieldMode === 'single') {
+        currentField = '';
+        currentFieldMode = '';
+      }
+      return;
+    }
+
+    freeformLines.push(line);
   });
+
+  applyFreeformHints(fieldValues, freeformLines, text);
 
   return { fieldValues, items };
 }
@@ -825,6 +1021,10 @@ function parseInvoiceDetails(text) {
 function applyParsedInvoiceDetails(parsedDetails) {
   const { fieldValues, items } = parsedDetails;
   const previousCompanyName = state.studio.companyName;
+  const parsedCurrency = normalizeCurrency(fieldValues.currency);
+  if (parsedCurrency) {
+    state.currency = parsedCurrency;
+  }
 
   Object.entries(fieldValues).forEach(([path, value]) => {
     if (path === 'taxRate') {
@@ -834,7 +1034,7 @@ function applyParsedInvoiceDetails(parsedDetails) {
       return;
     }
     if (path === 'taxPreset') {
-      const presetId = findTaxPreset(value);
+      const presetId = findTaxPreset(value, state.currency);
       if (presetId) {
         applyTaxPreset(presetId);
       }
@@ -845,6 +1045,10 @@ function applyParsedInvoiceDetails(parsedDetails) {
       if (currency) {
         state.currency = currency;
       }
+      return;
+    }
+    if (path === 'payment.terms') {
+      state.payment.terms = normalizePaymentTerms(value);
       return;
     }
     if (path === 'invoice.status') {

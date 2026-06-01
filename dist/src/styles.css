@@ -1074,6 +1074,12 @@ svg {
     margin: 0;
   }
 
+  .invoice,
+  .invoice * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   body {
     width: 210mm;
     min-height: 297mm;
