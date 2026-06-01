@@ -767,7 +767,7 @@ function normalizePaymentTerms(value) {
 }
 
 function parseNaturalLabeledLine(line) {
-  const naturalMatch = String(line || '').match(/^(company|business|client|customer|bill to|tagline|font|currency|status|invoice(?: no| number)?|issue date|due date|email|phone|website|site|bank|notes?|payment terms|terms|gst|vat|tax)\s+(.+)$/i);
+  const naturalMatch = String(line || '').match(/^(service provider|company name|business name|bill to|invoice date|invoice number|invoice no|issue date|due date|pay by|studio address|business address|from address|client address|billing address|customer address|bank name|account name|account holder|holder name|account number|account no|routing number|routing no|payment terms|payment due|due within|pay within|tax rate|tax type|tax option|tax preset|from|seller|vendor|provider|biller|company|business|to|for|client|customer|tagline|font|currency|status|invoice|issued|email|phone|website|site|domain|address|bank|account|a\/c|ifsc|swift|iban|upi|notes?|terms|igst|gst|vat|tax)\s+(.+)$/i);
   if (!naturalMatch) return null;
 
   return {
@@ -820,6 +820,80 @@ function isLikelyClientNameLine(line) {
   return /[A-Za-z]/.test(value);
 }
 
+function isAddressCandidateLine(line) {
+  const value = String(line || '').trim();
+  if (!value || value.length > 110) return false;
+  if (parseLabeledLine(value) || parseNaturalLabeledLine(value)) return false;
+  if (/:|@|https?:|www\.|\b[a-z0-9-]+\.[a-z]{2,}\b|[₹$€£]|\b(?:gst|igst|vat|tax|invoice|status|paid|due|draft|currency|inr|usd|eur|gbp|aud|cad|sgd|aed|jpy|nzd|zar|bank|account|routing|ifsc|swift|iban|upi|phone|email|website|qty|quantity|total|subtotal)\b/i.test(value)) {
+    return false;
+  }
+  return /[A-Za-z0-9]/.test(value);
+}
+
+function extractFirstEmail(text) {
+  return String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+}
+
+function extractFirstPhone(text) {
+  const phoneMatch = String(text || '').match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d{3,5}[\s.-]?\d{4,6}/);
+  if (!phoneMatch) return '';
+  const phone = phoneMatch[0].trim();
+  const digitCount = phone.replace(/\D/g, '').length;
+  return digitCount >= 8 ? phone : '';
+}
+
+function extractFirstWebsite(text) {
+  const websiteMatches = String(text || '').match(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+\/?[^\s,;)]*/ig) || [];
+  return websiteMatches.find((value) => !value.includes('@')) || '';
+}
+
+function extractInvoiceNumber(text) {
+  const invoiceMatch = String(text || '').match(/\b(?:invoice|inv)\s*(?:no|number|#)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9./_-]*\d[A-Z0-9./_-]*)/i);
+  return invoiceMatch?.[1] || '';
+}
+
+function extractStatus(text) {
+  const statusMatch = String(text || '').match(/\bstatus\s*[:#-]?\s*(paid|due|draft|unpaid)\b/i)
+    || String(text || '').match(/^\s*(paid|due|draft|unpaid)\s*$/im);
+  if (!statusMatch) return '';
+  return statusMatch[1].toLowerCase() === 'unpaid' ? 'DUE' : statusMatch[1].toUpperCase();
+}
+
+function extractLineValue(text, labels) {
+  const escapedLabels = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const match = String(text || '').match(new RegExp(`(?:^|\\n)\\s*(?:${escapedLabels})\\s*(?::|=|-|\\s)\\s*([^\\n]+)`, 'i'));
+  return match?.[1]?.trim() || '';
+}
+
+function extractPaymentTerms(text) {
+  const termsMatch = String(text || '').match(/\b(?:net\s+\d+|(?:pay(?:ment)?\s*)?(?:within|due within)\s+\d+\s+days?)\b/i);
+  return termsMatch?.[0] || '';
+}
+
+function extractAccountNumber(text) {
+  const accountMatch = String(text || '').match(/\b(?:account|acct|a\/c)\s*(?:no|number)?\s*(?::|=|#|-)?\s*([A-Z0-9][A-Z0-9 -]{3,})/i);
+  return accountMatch?.[1]?.trim() || '';
+}
+
+function extractRoutingNumber(text) {
+  const routingMatch = String(text || '').match(/\b(?:routing|ifsc|swift|iban|upi)\s*(?:no|number|code|id)?\s*(?::|=|#|-)?\s*([A-Z0-9][A-Z0-9 -]{2,})/i);
+  return routingMatch?.[1]?.trim() || '';
+}
+
+function collectAddressAfterName(freeformLines, clientName) {
+  const clientIndex = freeformLines.findIndex((line) => line === clientName);
+  if (clientIndex === -1) return '';
+
+  const addressLines = [];
+  for (const line of freeformLines.slice(clientIndex + 1)) {
+    if (!isAddressCandidateLine(line)) break;
+    addressLines.push(line);
+    if (addressLines.length === 4) break;
+  }
+
+  return addressLines.join('\n');
+}
+
 function applyFreeformHints(fieldValues, freeformLines, fullText) {
   if (!fieldValues.currency) {
     setFieldValue(fieldValues, 'currency', inferCurrencyFromText(fullText));
@@ -836,20 +910,42 @@ function applyFreeformHints(fieldValues, freeformLines, fullText) {
 
   if (!fieldValues['client.name']) {
     const clientName = freeformLines.find(isLikelyClientNameLine);
-    setFieldValue(fieldValues, 'client.name', clientName);
+    if (setFieldValue(fieldValues, 'client.name', clientName) && !fieldValues['client.address']) {
+      setFieldValue(fieldValues, 'client.address', collectAddressAfterName(freeformLines, clientName));
+    }
+  } else if (!fieldValues['client.address']) {
+    setFieldValue(fieldValues, 'client.address', collectAddressAfterName(freeformLines, fieldValues['client.name']));
   }
+
+  if (!fieldValues['studio.email']) setFieldValue(fieldValues, 'studio.email', extractFirstEmail(fullText));
+  if (!fieldValues['studio.phone']) setFieldValue(fieldValues, 'studio.phone', extractFirstPhone(fullText));
+  if (!fieldValues['studio.website']) setFieldValue(fieldValues, 'studio.website', extractFirstWebsite(fullText));
+  if (!fieldValues['invoice.number']) setFieldValue(fieldValues, 'invoice.number', extractInvoiceNumber(fullText));
+  if (!fieldValues['invoice.status']) setFieldValue(fieldValues, 'invoice.status', extractStatus(fullText));
+  if (!fieldValues['invoice.issueDate']) {
+    setFieldValue(fieldValues, 'invoice.issueDate', extractLineValue(fullText, ['issue date', 'invoice date', 'issued']));
+  }
+  if (!fieldValues['invoice.dueDate']) {
+    setFieldValue(fieldValues, 'invoice.dueDate', extractLineValue(fullText, ['due date', 'pay by', 'payment due']));
+  }
+  if (!fieldValues['payment.bank']) setFieldValue(fieldValues, 'payment.bank', extractLineValue(fullText, ['bank', 'bank name']));
+  if (!fieldValues['payment.accountNumber']) setFieldValue(fieldValues, 'payment.accountNumber', extractAccountNumber(fullText));
+  if (!fieldValues['payment.routingNumber']) setFieldValue(fieldValues, 'payment.routingNumber', extractRoutingNumber(fullText));
+  if (!fieldValues['payment.terms']) setFieldValue(fieldValues, 'payment.terms', extractPaymentTerms(fullText));
 }
 
 function parseLineItem(line) {
   const cleaned = String(line || '').replace(/^[-*+]\s*/, '').trim();
   if (!cleaned) return null;
+  if (!/[A-Za-z]/.test(cleaned)) return null;
 
-  const priceMatch = cleaned.match(/(?:price|rate|unit|amount)?\s*\$?\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
+  const priceMatch = cleaned.match(/(?:price|rate|unit|amount|@)?\s*(?:[$₹€£]|rs\.?|inr|usd|eur|gbp|aud|cad|sgd|aed|jpy|nzd|zar)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)\s*$/i);
   if (!priceMatch) return null;
 
   const quantityMatch = cleaned.match(/(?:qty|quantity)\s*[:=]?\s*(\d+(?:\.\d+)?)/i)
     || cleaned.match(/\b(\d+(?:\.\d+)?)\s*x\b/i)
-    || cleaned.match(/\bx\s*(\d+(?:\.\d+)?)\b/i);
+    || cleaned.match(/\bx\s*(\d+(?:\.\d+)?)\b/i)
+    || cleaned.match(/\b(\d+(?:\.\d+)?)\s*(?:@|at)\b/i);
   const quantity = quantityMatch ? Number(quantityMatch[1]) : 1;
   const unitPrice = parseMoney(priceMatch[1]);
   const description = cleaned
@@ -857,7 +953,8 @@ function parseLineItem(line) {
     .replace(/(?:qty|quantity)\s*[:=]?\s*\d+(?:\.\d+)?/ig, '')
     .replace(/\b\d+(?:\.\d+)?\s*x\b/ig, '')
     .replace(/\bx\s*\d+(?:\.\d+)?\b/ig, '')
-    .replace(/[,|-]+$/g, '')
+    .replace(/\b\d+(?:\.\d+)?\s*(?:@|at)\b/ig, '')
+    .replace(/[,|/:-]+$/g, '')
     .trim();
 
   if (!description || !Number.isFinite(quantity) || !Number.isFinite(unitPrice)) {
@@ -872,15 +969,48 @@ function parseLineItem(line) {
   };
 }
 
+function parseInlineItems(line) {
+  const cleaned = String(line || '').replace(/^[-*+]\s*/, '').trim();
+  if (!cleaned.includes(':')) return [];
+
+  const items = [];
+  const itemPattern = /([^:\n]+?)\s*:\s*(?:[$₹€£]|rs\.?|inr|usd|eur|gbp|aud|cad|sgd|aed|jpy|nzd|zar)?\s*([0-9][0-9,]*(?:\.\d{1,2})?)(?=\s+[A-Za-z][^:\n]{1,80}\s*:|$)/gi;
+  let match = itemPattern.exec(cleaned);
+
+  while (match) {
+    const description = match[1].trim().replace(/^[-,;]+|[-,;]+$/g, '');
+    const unitPrice = parseMoney(match[2]);
+    if (description && Number.isFinite(unitPrice)) {
+      items.push({
+        id: crypto.randomUUID(),
+        description,
+        quantity: 1,
+        unitPrice
+      });
+    }
+    match = itemPattern.exec(cleaned);
+  }
+
+  return items;
+}
+
 function parseInvoiceDetails(text) {
   const fieldValues = {};
   const items = [];
   const multilineFields = new Set(['studio.address', 'client.address', 'notes']);
   const labelMap = new Map([
+    ['from', 'studio.companyName'],
+    ['seller', 'studio.companyName'],
+    ['vendor', 'studio.companyName'],
+    ['provider', 'studio.companyName'],
+    ['service provider', 'studio.companyName'],
+    ['biller', 'studio.companyName'],
     ['company', 'studio.companyName'],
     ['company name', 'studio.companyName'],
     ['business', 'studio.companyName'],
     ['business name', 'studio.companyName'],
+    ['to', 'client.name'],
+    ['for', 'client.name'],
     ['tagline', 'studio.tagline'],
     ['studio label', 'studio.tagline'],
     ['subtitle', 'studio.tagline'],
@@ -899,12 +1029,16 @@ function parseInvoiceDetails(text) {
     ['studio address', 'studio.address'],
     ['business address', 'studio.address'],
     ['from address', 'studio.address'],
+    ['address', 'client.address'],
     ['invoice', 'invoice.number'],
     ['invoice no', 'invoice.number'],
     ['invoice number', 'invoice.number'],
+    ['invoice date', 'invoice.issueDate'],
     ['issue date', 'invoice.issueDate'],
+    ['issued', 'invoice.issueDate'],
     ['date', 'invoice.issueDate'],
     ['due date', 'invoice.dueDate'],
+    ['pay by', 'invoice.dueDate'],
     ['status', 'invoice.status'],
     ['client', 'client.name'],
     ['client name', 'client.name'],
@@ -926,23 +1060,32 @@ function parseInvoiceDetails(text) {
     ['note', 'notes'],
     ['bank', 'payment.bank'],
     ['bank name', 'payment.bank'],
+    ['account', 'payment.accountNumber'],
     ['account name', 'payment.accountName'],
+    ['account holder', 'payment.accountName'],
+    ['holder name', 'payment.accountName'],
+    ['a c', 'payment.accountNumber'],
     ['account no', 'payment.accountNumber'],
     ['account number', 'payment.accountNumber'],
+    ['ifsc', 'payment.routingNumber'],
     ['routing no', 'payment.routingNumber'],
     ['routing number', 'payment.routingNumber'],
+    ['swift', 'payment.routingNumber'],
+    ['iban', 'payment.routingNumber'],
+    ['upi', 'payment.routingNumber'],
     ['payment terms', 'payment.terms'],
     ['terms', 'payment.terms'],
     ['due within', 'payment.terms'],
     ['payment due', 'payment.terms'],
     ['pay within', 'payment.terms']
   ]);
-  const itemLabels = new Set(['items', 'item', 'line items', 'services', 'service']);
+  const itemLabels = new Set(['items', 'item', 'line items', 'services', 'service', 'works', 'work', 'tasks', 'task', 'charges', 'charge', 'deliverables', 'deliverable']);
   const addressContinuationLabels = new Set(['attn', 'attention', 'building', 'floor', 'suite', 'unit']);
 
   let currentField = '';
   let currentFieldMode = '';
   let inItems = false;
+  let openSection = '';
   const freeformLines = [];
 
   String(text || '').replace(/\r/g, '').split('\n').forEach((rawLine) => {
@@ -957,8 +1100,14 @@ function parseInvoiceDetails(text) {
         inItems = true;
         currentField = '';
         currentFieldMode = '';
-        const parsedItem = parseLineItem(value);
-        if (parsedItem) items.push(parsedItem);
+        openSection = '';
+        const parsedItems = parseInlineItems(value);
+        if (parsedItems.length) {
+          items.push(...parsedItems);
+        } else {
+          const parsedItem = parseLineItem(value);
+          if (parsedItem) items.push(parsedItem);
+        }
         return;
       }
 
@@ -971,6 +1120,13 @@ function parseInvoiceDetails(text) {
           : value;
         currentField = value ? (isMultilineField ? key : '') : key;
         currentFieldMode = isMultilineField ? 'multiline' : 'single';
+        if (key === 'client.name' || key === 'client.address') {
+          openSection = 'client';
+        } else if (key === 'studio.companyName' || key === 'studio.address') {
+          openSection = 'studio';
+        } else {
+          openSection = '';
+        }
         setFieldValue(fieldValues, key, fieldValue);
         if (value && !isMultilineField) {
           currentField = '';
@@ -980,6 +1136,16 @@ function parseInvoiceDetails(text) {
       }
 
       if (!inItems) {
+        const parsedLabeledItems = parseInlineItems(line);
+        const parsedLabeledItem = parsedLabeledItems.length ? null : parseLineItem(line);
+        if (parsedLabeledItems.length || parsedLabeledItem) {
+          items.push(...parsedLabeledItems);
+          if (parsedLabeledItem) items.push(parsedLabeledItem);
+          openSection = '';
+          currentField = '';
+          currentFieldMode = '';
+          return;
+        }
         if (currentFieldMode === 'multiline' && currentField.endsWith('.address') && addressContinuationLabels.has(label)) {
           setFieldValue(fieldValues, currentField, line, { append: true });
         }
@@ -990,23 +1156,49 @@ function parseInvoiceDetails(text) {
     }
 
     if (inItems || /^[-*+]\s+/.test(line)) {
-      const parsedItem = parseLineItem(line);
-      if (parsedItem) items.push(parsedItem);
-      return;
-    }
-
-    const parsedFreeformItem = parseLineItem(line);
-    if (parsedFreeformItem) {
-      items.push(parsedFreeformItem);
+      const parsedItems = parseInlineItems(line);
+      if (parsedItems.length) {
+        items.push(...parsedItems);
+      } else {
+        const parsedItem = parseLineItem(line);
+        if (parsedItem) items.push(parsedItem);
+      }
       return;
     }
 
     if (currentField) {
+      const consumedField = currentField;
       setFieldValue(fieldValues, currentField, line, { append: currentFieldMode === 'multiline' });
       if (currentFieldMode === 'single') {
+        if (consumedField === 'client.name') {
+          openSection = 'client';
+        } else if (consumedField === 'studio.companyName') {
+          openSection = 'studio';
+        } else {
+          openSection = '';
+        }
         currentField = '';
         currentFieldMode = '';
       }
+      return;
+    }
+
+    if (openSection === 'client' && isAddressCandidateLine(line)) {
+      setFieldValue(fieldValues, 'client.address', line, { append: true });
+      return;
+    }
+
+    if (openSection === 'studio' && isAddressCandidateLine(line)) {
+      setFieldValue(fieldValues, 'studio.address', line, { append: true });
+      return;
+    }
+
+    const parsedFreeformItems = parseInlineItems(line);
+    const parsedFreeformItem = parsedFreeformItems.length ? null : parseLineItem(line);
+    if (parsedFreeformItems.length || parsedFreeformItem) {
+      items.push(...parsedFreeformItems);
+      if (parsedFreeformItem) items.push(parsedFreeformItem);
+      openSection = '';
       return;
     }
 
