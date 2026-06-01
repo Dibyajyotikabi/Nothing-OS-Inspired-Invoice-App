@@ -458,6 +458,11 @@ function getBrandMarkup() {
   `;
 }
 
+function invoiceDotFieldMarkup(extraClass) {
+  const dots = Array.from({ length: 24 * 14 }, () => '<span class="invoice-field-dot" aria-hidden="true"></span>').join('');
+  return `<div class="invoice-dot-field ${extraClass}" aria-hidden="true">${dots}</div>`;
+}
+
 function renderItemRows() {
   return state.items.map((item) => {
     const amount = Number(item.quantity || 0) * Number(item.unitPrice || 0);
@@ -479,8 +484,8 @@ function renderInvoice() {
   const totals = getTotals();
 
   invoiceDocument.innerHTML = `
-    <div class="invoice-dot-field invoice-dot-field-top"></div>
-    <div class="invoice-dot-field invoice-dot-field-bottom"></div>
+    ${invoiceDotFieldMarkup('invoice-dot-field-top')}
+    ${invoiceDotFieldMarkup('invoice-dot-field-bottom')}
     <div class="red-dot"></div>
     <div class="decor-plus decor-plus-top">+</div>
     <div class="decor-plus decor-plus-bottom">+</div>
