@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nothing Invoice App</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="toolbar" aria-label="Invoice tools">
+        <div class="toolbar-copy">
+          <strong>Invoice</strong>
+          <span id="toolbarInvoiceNumber">INV-24.001</span>
+        </div>
+        <div class="toolbar-actions">
+          <label class="tool-field">
+            <span>Status</span>
+            <select id="statusControl" aria-label="Invoice status">
+              <option value="PAID">Paid</option>
+              <option value="DUE">Due</option>
+              <option value="DRAFT">Draft</option>
+            </select>
+          </label>
+          <label class="tool-field">
+            <span>Tax</span>
+            <input id="taxControl" type="number" min="0" step="0.1" aria-label="Tax rate" />
+          </label>
+          <button class="tool-button" id="addItemButton" type="button" title="Add item" aria-label="Add item">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span>Add</span>
+          </button>
+          <button class="tool-button icon-only" id="printButton" type="button" title="Print invoice" aria-label="Print invoice">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
+            </svg>
+          </button>
+          <button class="tool-button icon-only" id="resetButton" type="button" title="Reset invoice" aria-label="Reset invoice">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7M3 4v6h6" />
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      <section class="invoice-wrap" aria-label="Editable invoice preview">
+        <article class="invoice" id="invoiceDocument"></article>
+      </section>
+    </main>
+
+    <script src="src/main.js"></script>
+  </body>
+</html>

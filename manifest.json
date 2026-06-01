@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Nothing Invoice App",
+  "version": "1.0.0",
+  "description": "Create and print a minimal editable studio invoice.",
+  "action": {
+    "default_title": "Invoice",
+    "default_popup": "index.html"
+  },
+  "options_page": "index.html"
+}
